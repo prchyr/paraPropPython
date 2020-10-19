@@ -257,6 +257,9 @@ class paraPropSimple:
             self.n2Vec=nOut*nOut
             return self.n2Vec
 
+    def n2User(self):
+        return 1
+
     def southpoleFit(self, z):
         """piecewise function that matches the spice data pretty OK, can be used elsewhere"""
         A = 1.78
@@ -308,6 +311,8 @@ class paraPropSimple:
         #initialize the index of refraction field
         if self.site=="TD":
             self.n2TD(abs(self.z), self.nProfile)
+        elif self.site=="USER":
+            self.n2User()
         else:
             self.n2SP(abs(self.z), self.nProfile, self.dataType)
 

@@ -21,11 +21,24 @@ site="SP"# south pole
 method="II"# in ice
 randomDensity=int(sys.argv[3])
 nProfile="functional"#functional form for n(z)
+useUserN = False # if True, use a user supplied functional fit
+
+def userN(Z):
+    # SP-like profile
+    A=1.5
+    B=-.23
+    C=-.0152
+    array = np.array([])
+    for z in Z:
+        array = np.append(array, A+B*np.exp(C*z))
+            
+    return array
+
 if randomDensity==1:
     nProfile="data"#data-driven n(z) profile
 
 #declare a simple parabolic solver
-simple=prop.paraPropSimple(freq, xMax, zMax, sourceDepth, polarization, site, method, nProfile)
+simple=prop.paraPropSimple(freq, xMax, zMax, sourceDepth, polarization, site, method, nProfile, useUserN = useUserN, userN = userN)
 
 
 simple.doSolver()

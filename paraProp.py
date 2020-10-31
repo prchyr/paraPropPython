@@ -26,7 +26,7 @@ class paraPropSimple:
     """define a paraPropSimple object. 
     used for propagation beneath the ice surface from a dipole source. 
     """
-    def __init__(self, freq, xMax, zMax, sourceDepth=30, polarization=0, site="SP", method="II", nProfile="functional", dataType="", debug=0):
+    def __init__(self, freq, xMax, zMax, sourceDepth=30, polarization=0, site="SP", method="II", nProfile="functional", dataType="", debug=0, useUserN = False, userN = None):
         """freq is frequency
     xMax is the maximum x dimension in meters
     zMax is the maximum z depth in meters (positive value for depth. larger value is deeper)
@@ -39,10 +39,10 @@ class paraPropSimple:
 
         self.debug=debug
         self.path=os.path.dirname(os.path.abspath(__file__))
-        self.setVals(freq, xMax, zMax, sourceDepth, polarization,  site, method,nProfile, dataType)
+        self.setVals(freq, xMax, zMax, sourceDepth, polarization,  site, method,nProfile, dataType, useUserN, userN)
         
 
-    def setVals(self, freq, xMax, zMax, sourceDepth=30, polarization=0,  site="SP", method="II",nProfile="functional", dataType=""):
+    def setVals(self, freq, xMax, zMax, sourceDepth=30, polarization=0,  site="SP", method="II",nProfile="functional", dataType="",useUserN = False, userN = None):
         """set the values. can be used for updating once a paraPropSimple object has been created"""
 
         if(freq==0):
@@ -120,6 +120,11 @@ class paraPropSimple:
         self.k0=k0
         
         self.dipoleBeam(self.z)
+        
+        ## new ##
+        self.useUserN = useUserN
+        self.userN = userN
+        
 
         
 
@@ -203,7 +208,6 @@ class paraPropSimple:
         return self.n2Vec
 
 
-
     
     def n2SP(self, z, nProfile="functional", dataType=""):
         """set the n(z) profile for the south pole, using the functional form. Optional to use the SPICE density profile for depths shallower than 100m"""
@@ -215,7 +219,11 @@ class paraPropSimple:
 
             func1=np.full(self.halfZ, 1.0003)
 
-            func2=A+B*np.exp(C*z[self.halfZ:self.fullZ])
+            if self.useUserN: 
+                func2 = self.userN(z[self.halfZ:self.fullZ])
+                print(len(func2))
+              
+            else: func2=A+B*np.exp(C*z[self.halfZ:self.fullZ])
 
             func3=np.append(func1, func2);
             
@@ -256,9 +264,6 @@ class paraPropSimple:
             nOut=np.append(tmp1, func2)
             self.n2Vec=nOut*nOut
             return self.n2Vec
-
-    def n2User(self):
-        return 1
 
     def southpoleFit(self, z):
         """piecewise function that matches the spice data pretty OK, can be used elsewhere"""

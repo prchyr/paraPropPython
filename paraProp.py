@@ -164,13 +164,58 @@ class paraPropSimple:
 
         self.initField=field;
         return field
+
+    def phasedArray(self, z, A=1+0j, n=8, scaling=1.):
+        """Define a half-wave dipole source. 
+        dimensions are defined by the wavelength. The dipole is vertical (axis along z) for now.
+        """
+        field=np.zeros(self.fullZ, dtype='complex')
+        print(self.lam);
+        for i in range(0,n):
+            z0=self.z0+(i*(scaling*self.lam))
+            z0Index=util.findNearest(z, z0)
+            z0Index1=util.findNearest(z, -z0)
+
+            halfLength=self.lam/2.
+            self.debugPrint("halflength: "+str(halfLength))
+            
+            npoints=int(halfLength/self.dz)
+            self.debugPrint("npoints: "+str(npoints))
+            if npoints>len(z)/4:
+                npoints=int(len(z)/4)
+                
+            zRange=np.linspace(-halfLength, halfLength, 2*npoints, dtype='complex')
+            self.debugPrint(zRange.shape)
+            zR1=np.linspace(0, 1, npoints, dtype='complex')
+            zR2=np.linspace(1, 0, npoints, dtype='complex')
+            zRange=np.append(zR1, zR2)
+            
+            n_x=np.pi*zRange
+            e=[0., 0., 1.]
+            beam=np.zeros(len(n_x), dtype='complex');
+            f0=np.zeros(len(n_x), dtype='complex');
+            for i in range(len(n_x)):
+                n=[n_x[i], 0, 0]
+                
+                val=(np.cross(np.cross(n, e), n)[2])
+                
+                beam[i]=complex(val, val)
+
+            f0=(A*(beam/(np.max(beam))))
+            
+            
+            field[z0Index-npoints+1:z0Index+npoints+1]=f0
+
+
+        self.initField=field;
+        return field
         
     def setBaseIndexOfRefractionProfile(self,site, nProfile):
         """sets a base profile for calculations"""
         if site=="TD":
-            self.n2TD(abs(self.z), 0)
+            self.n2TD(abs(self.z), nProfile)
         else:
-            self.n2SP(abs(self.z), 0)
+            self.n2SP(abs(self.z), nProfile)
 
         
         
@@ -224,7 +269,15 @@ class paraPropSimple:
             self.n2Vec=n2Vec
 
             return n2Vec
-        
+
+        elif nProfile=="uniform":
+          func1=np.full(self.halfZ, 1.0003)
+          func2=np.full(self.halfZ, 1.0003);
+          func3=np.append(func1, func2);
+          n2Vec=func3*func3
+          self.n2Vec=n2Vec
+          return n2Vec
+      
         else:
             if(dataType=="phased"):
                 return self.n2Phased()

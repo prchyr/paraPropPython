@@ -33,7 +33,7 @@ simple.doSolver()
 #plot the magnitude of the field below the ice and slightly above
 absu=(abs(simple.psiFull))
 plt.style.use(['dark_background'])
-plt.imshow(absu, extent=(0, xMax-1, -2*zMax, 2*zMax), aspect='auto', cmap='hot',  vmin=.0001, vmax=.02)
+plt.imshow(absu, extent=(0, xMax-1, -simple.fullDepthM, simple.fullDepthM), aspect='auto', cmap='hot',  vmin=.0001, vmax=.02)
 plt.title(str(int(freq*1000))+" MHz")
 plt.xlabel("x [m]")
 plt.ylabel("z [m]")

@@ -1,18 +1,92 @@
 # paraPropPython
-# s. prohira, c. sbrocco
-
-### TODO: Time Dependent Signals and Receiver class ###
+# c. sbrocco, s. prohira
 
 import util
 import numpy as np
 
 class receiver:
     """
-    TODO: fully implement
+    Parameters
+    ----------
+    x : float
+        x position (m)
+    z : float
+        z position (m)
     """
     def __init__(self, x, z):
         self.x = x
         self.z = z
+    
+    def setup(self, freq, dt):
+        """
+        further setup of receiver using simulation parameters
+        
+        Parameters
+        ----------
+        freq : float array
+            frequencies (GHz)
+        dt : float
+            time step (ns)
+        """
+        self.freq = freq
+        self.spectrum = np.zeros(len(freq), dtype='complex')
+        self.time = np.arange(0, dt*len(freq), dt)
+    
+    def add_spectrum_component(self, f, A):
+        """
+        adds the contribution of a frequency to the received signal spectrum
+        
+        Parameters
+        ----------
+        f : float
+            corresponding frequencie (GHz)
+        A : complex float
+            complex amplitude of received siganl (V/m???)
+        """
+        i = util.findNearest(self.freq, f)
+        self.spectrum[i] = A
+        
+    def get_spectrum(self):
+        """
+        gets received signal spectrum
+        
+        Returns
+        -------
+        1-d comlplex float array
+        """
+        return self.spectrum[:int(len(self.freq)/2)]
+    
+    def get_signal(self):
+        """
+        gets received signal
+        
+        Returns
+        -------
+        1-d comlplex float array
+        """
+        return np.flip(util.doIFFT(self.spectrum))
+    
+    def get_frequency(self):
+        """
+        gets frequency array
+        
+        Returns
+        -------
+        1-d float array
+        """
+        return abs(self.freq)[:int(len(self.freq)/2)]
+    
+    def get_time(self):
+        """
+        gets time array
+        
+        Returns
+        -------
+        1-d float array
+        """
+        return self.time
+     
+        
 
 class paraProp:
     """
@@ -93,8 +167,7 @@ class paraProp:
         1-d float array
         """
         return self.z
-    
-    
+      
     
     ### ice profile functions ###
     def set_n(self, method, nVec=None, nFunc=None, nAir=1.0003):
@@ -161,8 +234,7 @@ class paraProp:
         1-d float array
         """
         return self.n[self.fNum:-self.fNum]
-    
-    
+   
     
     ### source functions ###
     def set_user_source_profile(self, method, z0=0, sVec=None, sFunc=None):
@@ -185,7 +257,7 @@ class paraProp:
         sFunc : function
             if method=='func', defines the source profile as a function
             Precondition: sFunc is a function of one variable, z, and returns a float value
-            Postcondition: E(z>=0) = nsFunc(z)
+            Postcondition: E(z>=0) = sFunc(z)
         """    
         self.source = np.zeros(self.zNumFull, dtype='complex')
         
@@ -264,8 +336,7 @@ class paraProp:
         1-d comlplex float array
         """
         return self.source[self.fNum:-self.fNum]
-
-    
+   
     
     ### signal functions ###
     def set_cw_source_signal(self, freq):
@@ -277,19 +348,76 @@ class paraProp:
         freq : float
             frequency of source (GHz) 
         """
-        ### frequency and wavelength in free space ###
+        ### frequency ###
         self.freq = np.array([freq], dtype='complex')
         self.freqNum = len(self.freq)
-        self.lmbda = util.c_light/self.freq
         
-        ### wavelength and wavenumber at reference depth ###
-        self.lmbda0 = self.lmbda/self.n0
-        self.k0 = 2.*np.pi/self.lmbda0 
+        ### wavenumber at reference depth ###
+        self.k0 = 2.*np.pi*self.freq*self.n0/util.c_light 
         
         ### coefficient ###
         self.A = np.array([1], dtype='complex')
         
+    def set_td_source_signal(self, sigVec, dt):
+        ### save input ###
+        self.dt = dt
+        self.sigVec = sigVec
         
+        ### frequencies ###
+        df = 1/(len(sigVec)*dt)
+        self.freq = np.arange(0, 1/dt, df, dtype='complex')
+        self.freqNum = len(self.freq)
+        
+        ### wavenumbers at reference depth ###
+        self.k0 = 2.*np.pi*self.freq*self.n0/util.c_light 
+        
+        ### coefficient ###
+        self.A = util.doFFT(np.flip(sigVec))
+        
+        # to ignore the DC component #
+        self.A[0] = self.k0[0] = 0
+
+        
+    def get_spectrum(self):
+        """
+        gets transmitted signal spectrum
+        
+        Returns
+        -------
+        1-d comlplex float array
+        """
+        return self.A[:int(self.freqNum/2)]
+    
+    def get_frequency(self):
+        """
+        gets frequency array
+        
+        Returns
+        -------
+        1-d float array
+        """
+        return abs(self.freq)[:int(self.freqNum/2)]
+    
+    def get_signal(self):
+        """
+        gets transmitted signal
+        
+        Returns
+        -------
+        1-d comlplex float array
+        """
+        return self.sigVec
+    
+    def get_time(self):
+        """
+        gets time array
+        
+        Returns
+        -------
+        1-d float array
+        """
+        return np.arange(0, self.dt*len(self.sigVec), self.dt)
+               
         
     ### field functions ###    
     def do_solver(self, rxList=np.array([])):
@@ -312,9 +440,12 @@ class paraProp:
             ### check for Receivers ###
             if (len(rxList) == 0):
                 print("Warning: Running time-domain simulation with no receivers. Field will not be saved.")
+            for rx in rxList:
+                rx.setup(self.freq, self.dt)
                 
-        for j in range(self.freqNum):
-            u = self.A[j] * self.source * self.filt
+        for j in np.arange(0, int(self.freqNum/2)+self.freqNum%2, 1, dtype='int'):
+            if (self.freq[j] == 0): continue
+            u = 2 * self.A[j] * self.source * self.filt * self.freq[j]
             self.field[0,:] = u[self.fNum:-self.fNum]
 
             ### method II ###
@@ -326,10 +457,13 @@ class paraProp:
             for i in range(1, self.xNum):           
                 u = alpha * (util.doFFT(u))
                 u = beta * (util.doIFFT(u))
-
                 u = self.filt * u
 
                 self.field[i,:] = u[self.fNum:-self.fNum]/(np.sqrt(self.dx*i) * np.exp(-1.j * self.k0[j] * self.dx * i))
+            if (len(rxList) != 0):
+                for rx in rxList:
+                    rx.add_spectrum_component(self.freq[j], self.get_field(x0=rx.x, z0=rx.z))
+                self.field.fill(0)
 
           
     def get_field(self, x0=None, z0=None):
@@ -356,8 +490,6 @@ class paraProp:
         if neither x0 or z0 are supplied
             2-d complex float array
         """
-        if (self.freqNum != 1):
-            print("TODO: Non-CW signal warning")
         if (x0!=None and z0!=None):
             return self.field[util.findNearest(self.x, x0),util.findNearest(self.z,z0)]
         if (x0!=None and z0==None): 
@@ -365,8 +497,7 @@ class paraProp:
         if (x0==None and z0!=None):
             return self.field[:,util.findNearest(self.z,z0)]
         return self.field
-                        
-            
+                                   
 
     ### misc. functions ###
     def at_depth(self, vec, depth):
@@ -397,8 +528,5 @@ class paraProp:
         dIndex = round((depth + self.filterDepth + self.airHeight) / self.dz)
         
         return vec[dIndex]
-                     
-     
-
     
-        
+    

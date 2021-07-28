@@ -91,6 +91,8 @@ class paraPropSimple:
         self.kz[0:self.halfZ]=np.linspace(0,np.pi/self.dz, self.halfZ)
         self.kz[self.halfZ:self.fullZ]=np.linspace(-np.pi/self.dz,0, self.halfZ)
 
+        #from sjoerd
+        #self.kz = 2 * np.pi * np.fft.fftfreq(self.fullZ, self.dz)
         #set the base index of refraction profile for this object. This is always the functional form, even if the user specifies data-driven, and is used to set values for calculations used.
         self.setBaseIndexOfRefractionProfile(site, nProfile)        
         #get index of refraction correction

@@ -2,7 +2,9 @@
 # c. sbrocco, s. prohira
 
 import util
+import math as m
 import numpy as np
+from inspect import signature
 
 class receiver:
     """
@@ -118,26 +120,25 @@ class paraProp:
         self.iceDepth = iceDepth
         self.airHeight = airHeight
         self.z = np.arange(-airHeight, iceDepth + dz, dz)
-        self.zFull = np.arange(-(airHeight + filterDepth), iceDepth + filterDepth + dz, dz)
         self.zNum = len(self.z)
-        self.zNumFull = len(self.zFull)
         self.dz = dz
         self.refDepth = refDepth            
         
         ### other simulation variables ###       
         # filter information #
-        self.filterDepth = filterDepth
-        self.fNum = int(filterDepth / dz)
-        win = np.blackman(2*self.fNum)
+        self.fNum0 = int(filterDepth / dz)
+        
+        self.fNum1, self.fNum2 = self.optimize_filt_size(self.zNum, self.fNum0)
+        self.zFull = np.arange(-(airHeight + self.fNum1*dz), iceDepth + self.fNum2*dz + dz, dz)
+        self.zNumFull = len(self.zFull)
+        win = np.blackman(self.fNum1 + self.fNum2)
         filt = np.ones(self.zNumFull)
-        filt[:self.fNum] = win[:self.fNum]
-        filt[-self.fNum:] = win[self.fNum:]
+        filt[:self.fNum1] = win[:self.fNum1]
+        filt[-self.fNum2:] = win[self.fNum1:]
         self.filt = filt
        
         # z wavenumber #
-        self.kz = np.zeros(self.zNumFull)
-        self.kz[:int(self.zNumFull/2)] = np.linspace(0, np.pi/self.dz, int(self.zNumFull/2))
-        self.kz[-int(self.zNumFull/2):] = np.linspace(-np.pi/self.dz, 0, int(self.zNumFull/2))
+        self.kz = np.fft.fftfreq(self.zNumFull)*2*np.pi/self.dz
         
         # index of refraction array #
         self.n = np.ones(self.zNumFull)
@@ -147,6 +148,18 @@ class paraProp:
         
         # 2d field array #
         self.field = np.zeros((self.xNum, self.zNum), dtype='complex')
+        
+    def optimize_filt_size(self, zNum, fNum):
+        zNumFull = 2*fNum + zNum
+        p2 = 2**m.ceil(m.log(zNumFull, 2))
+        p3 = 3**m.ceil(m.log(zNumFull, 3))
+        p5 = 5**m.ceil(m.log(zNumFull, 5))
+        p7 = 7**m.ceil(m.log(zNumFull, 7))
+        p = min([p2, p3, p5, p7])
+        fNum = p - zNum
+        fNum1 = int(fNum/2)
+        fNum2 = fNum - fNum1
+        return fNum1, fNum2
         
     def get_x(self):
         """
@@ -170,60 +183,88 @@ class paraProp:
       
     
     ### ice profile functions ###
-    def set_n(self, method, nVec=None, nFunc=None, nAir=1.0003):
+    def set_n(self, nVal=None, nVec=None, nFunc=None, nAir=1.0003):
         """
         set the index of refraction profile of the simualtion
         
         future implementation plans:
-            - 2-d profiles
             - complex index of refraction
         
         Parameters
         ----------
-        method : string
-            'vector' for vector defined profile
-            'func' for function defined profile
+        nVal : float
+            Postcondition: n(z>=0, x>=0) = nVal
         nVec : array
-            if method=='vector', defines the index of refraction profile of ice as an array
-            Precondition: spacing between elements is dz
-            Postcondition: n(z=0) = nVec[0], n(z=dz) = nVec[1], ... , n(z>=len(nVec)*dz) = nVec[-1]
+            1-d or 2-d array of float values
+            Precondition: spacing between rows is dz, spacing between columns is dx
+            Postcondition: n(z=0,x=0) = nVec[0,0], n(z=dz,x=dx) = nVec[1,1], ..., n(z>=len(nVec[:,0])*dz,x>=len(nVec[0,:])*dx) = nVec[-1,-1]
         nFunc : function
-            if method=='func', defines the index of refraction profile of ice as a function
-            Precondition: nFunc is a function of one variable, z, and returns a float value
-            Postcondition: n(z>=0) = nFunc(z)
+            Precondition: nFunc is a function of one or two variables, z and x, and returns a float value
+            Postcondition: n(z>=0,x>=0) = nFunc(z,x)
         nAir : float
             index of refraction of air
             Postcondition: n(z<0) = nAir
         """    
-        self.n = np.ones(self.zNumFull)
+        self.n = np.ones((self.zNumFull, self.xNum))
         
-        ### vector method ###
-        if method == 'vector': 
-            nNum = len(nVec)
-            j = 0
+        if nVal != None:
             for i in range(self.zNumFull):
                 if self.zFull[i] >= 0:
-                    if j < nNum:
-                        self.n[i] = nVec[j]
-                    else:
-                        self.n[i] = nVec[-1]
-                    j += 1
+                    self.n[i,:] = nVal
                 else:
-                    self.n[i] = nAir
+                    self.n[i,:] = nAir
+        
+        elif nVec != None:             
+            if len(nVec.shape) == 1:
+                a = 0
+                nNum = len(nVec)
+                for i in range(self.zNumFull):
+                    if self.zFull[i] >= 0:
+                        ai = a if a < nzNum else -1
+                        self.n[i,:] = nVec[ai]
+                        a += 1
+                    else:
+                        self.n[i,:] = nAir
+            elif len(nVec.shape) == 2: 
+                a = 0
+                b = 0
+                nzNum = len(nVec[:,0])
+                nxNum = len(nVec[0,:])
+                for i in range(self.zNumFull):
+                    for j in range(self.xNum):
+                        if self.zFull[i] >= 0:
+                            ai = a if a < nzNum else -1
+                            bi = b if b < nxNum else -1
+                            self.n[i,j] = nVec[ai,bi]
+                            a += 1
+                            b += 1
+                        else:
+                            self.n[i,j] = nAir
          
-        ### functional method ###
-        if method == 'func':
-            for i in range(self.zNumFull):
-                if self.zFull[i] >= 0:
-                    if self.zFull[i] <= self.iceDepth:
-                        self.n[i] = nFunc(self.zFull[i])
+        elif nFunc != None:
+            sig = signature(nFunc)
+            numParams = len(sig.parameters)
+            if numParams == 1:
+                for i in range(self.zNumFull):
+                    if self.zFull[i] >= 0:
+                        z = self.zFull[i] if self.zFull[i] <= self.iceDepth else self.iceDepth
+                        self.n[i,:] = nFunc(z)
                     else:
-                        self.n[i] = nFunc(self.iceDepth)
-                else:
-                    self.n[i] = nAir
-                    
+                        self.n[i,:] = nAir
+            elif numParams == 2:
+                for i in range(self.zNumFull):
+                    for j in range(self.xNum):
+                        if self.zFull[i] >= 0:
+                            z = self.zFull[i] if self.zFull[i] <= self.iceDepth else self.iceDepth
+                            x = self.x[j]
+                            self.n[i,j] = nFunc(z,x)
+                        else:
+                            self.n[i,j] = nAir
+                            
         ### set reference index of refraction ###
-        self.n0 = self.at_depth(self.n, self.refDepth)
+        self.n0 = self.at_depth(self.n[:,0], self.refDepth)
+        
+        self.n = np.transpose(self.n) 
         
     def get_n(self):
         """
@@ -231,9 +272,9 @@ class paraProp:
         
         Returns
         -------
-        1-d float array
+        2-d float array
         """
-        return self.n[self.fNum:-self.fNum]
+        return np.transpose(self.n[:,self.fNum1:-self.fNum2])
    
     
     ### source functions ###
@@ -335,7 +376,7 @@ class paraProp:
         -------
         1-d comlplex float array
         """
-        return self.source[self.fNum:-self.fNum]
+        return self.source[self.fNum1:-self.fNum2]
    
     
     ### signal functions ###
@@ -446,20 +487,20 @@ class paraProp:
         for j in np.arange(0, int(self.freqNum/2)+self.freqNum%2, 1, dtype='int'):
             if (self.freq[j] == 0): continue
             u = 2 * self.A[j] * self.source * self.filt * self.freq[j]
-            self.field[0,:] = u[self.fNum:-self.fNum]
-
-            ### method II ###
+            self.field[0] = u[self.fNum1:-self.fNum2]
+            
             alpha = np.exp(1.j * self.dx * self.k0[j] * (np.sqrt(1. - (self.kz**2 / self.k0[j]**2))- 1.))
-            B = (self.n)**2-1
+            B = self.n**2-1
             Y = np.sqrt(1.+(self.n/self.n0)**2)
             beta = np.exp(1.j * self.dx * self.k0[j] * (np.sqrt(B+Y**2)-Y))
-
-            for i in range(1, self.xNum):           
+            
+            for i in range(1, self.xNum):               
                 u = alpha * (util.doFFT(u))
-                u = beta * (util.doIFFT(u))
+                u = beta[i] * (util.doIFFT(u))
                 u = self.filt * u
 
-                self.field[i,:] = u[self.fNum:-self.fNum]/(np.sqrt(self.dx*i) * np.exp(-1.j * self.k0[j] * self.dx * i))
+                self.field[i] = u[self.fNum1:-self.fNum2]/(np.sqrt(self.dx*i) * np.exp(-1.j * self.k0[j] * self.dx * i))
+                
             if (len(rxList) != 0):
                 for rx in rxList:
                     rx.add_spectrum_component(self.freq[j], self.get_field(x0=rx.x, z0=rx.z))
@@ -525,7 +566,7 @@ class paraProp:
                 return np.NaN
          
         # find closest index #
-        dIndex = round((depth + self.filterDepth + self.airHeight) / self.dz)
+        dIndex = round((depth + self.fNum1*self.dz + self.airHeight) / self.dz)
         
         return vec[dIndex]
     

@@ -8,6 +8,9 @@ The simulation is highly customizable. The user can specify a source and an inde
 
 both steady state (continuous-wave) sources and time-domain sources can be simulated.
 
+### NOTE: 
+It is highly recommended that you use the paraPropPython.py module. paraPropSimple.py is legacy code and will likely be removed at some point in the future
+
 ## installing
 
 no installation, just clone the repo

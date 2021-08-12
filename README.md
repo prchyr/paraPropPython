@@ -1,12 +1,12 @@
 # paraPropPython
 
-this is a simple parabolic equation EM solver. It uses the parabolic equation approximation to simulate the propagation of EM waves in a medium with a changing index of refraction. 
+this is a simple, in-ice parabolic equation EM solver. It uses the parabolic equation approximation to simulate the propagation of EM waves in a medium with a changing index of refraction. 
 
-Currently it is designed to simulate propagation of waves beneath the ice and in the air on short-ish baselines. 
+Currently it is designed to simulate propagation of waves beneath the ice and in the air on ~1km baselines. 
 
-2 n(z) profiles can be used: south pole, and taylor dome antarctica. These functional forms can be used as smooth n(z) profiles, or can be augmented with experimental data (for the south pole) and random density fluctuations (for the taylor dome site, data hopefully forthcoming) to simulate realistic RF propagation in the firn. 
+The simulation is highly customizable. The user can specify a source and an index of refraction profile in several different ways. Information on how to use this software can be found in the examples and the .py files. 
 
-It is written in python (which i don't really speak), is new, and is being expanded, and will probably break a lot. email prohira.1 attt osu dottt edu with questions.
+both steady state (continuous-wave) sources and time-domain sources can be simulated.
 
 ## installing
 
@@ -14,8 +14,6 @@ no installation, just clone the repo
 
 ## using
 
-cd into the repo directory and try:
+To begin, take a look at the ```example.ipynb``` jupyter notebook. ```example_td.ipynb``` is another example notebook showing the time-domain capabilities. 
 
-python3 simpleExample.py <frequency [GHz, keep it below 1]> <source depth [m]> <use density fluctiations? [0=no, 1=yes]>
-
-and you should see a plot. 
+for questions, please contact prohira dot 1 at osu dot edu. 

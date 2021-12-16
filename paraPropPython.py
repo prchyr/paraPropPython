@@ -141,8 +141,10 @@ class paraProp:
         self.kz = np.fft.fftfreq(self.zNumFull)*2*np.pi/self.dz
         
         # index of refraction array #
-        self.n = np.ones(self.zNumFull)
-        
+        # Alex: Change to an array of complex numbers -> to account for attenuation
+        self.n = np.ones((self.zNumFull, self.xNum), dtype='complex')
+        #TODO: Should I define it (zNum, xNum) or (xNum, zNum)? Because it's defined (zNum, xNum) in set_n but then is transformed by np.tranpose to (xNum, zNum)
+
         # source array #
         self.source = np.zeros(self.zNumFull, dtype='complex')
         
@@ -205,7 +207,7 @@ class paraProp:
             index of refraction of air
             Postcondition: n(z<0) = nAir
         """    
-        self.n = np.ones((self.zNumFull, self.xNum))
+        self.n = np.ones((self.zNumFull, self.xNum), dtype='complex')
         
         if nVal != None:
             for i in range(self.zNumFull):
@@ -217,7 +219,7 @@ class paraProp:
         elif nVec != None:             
             if len(nVec.shape) == 1:
                 a = 0
-                nNum = len(nVec)
+                nzNum = len(nVec) #TODO: was originally nNum -> changed to nzNum
                 for i in range(self.zNumFull):
                     if self.zFull[i] >= 0:
                         ai = a if a < nzNum else -1
@@ -380,7 +382,7 @@ class paraProp:
    
     
     ### signal functions ###
-    def set_cw_source_signal(self, freq):
+    def set_cw_source_signal(self, freq): #TODO: Consider changing the amplitude
         """
         set a continuous wave signal at a specified frequency
         
@@ -505,6 +507,7 @@ class paraProp:
                 for rx in rxList:
                     rx.add_spectrum_component(self.freq[j], self.get_field(x0=rx.x, z0=rx.z))
                 self.field.fill(0)
+    #TODO: Add backwards solver
 
           
     def get_field(self, x0=None, z0=None):

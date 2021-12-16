@@ -471,7 +471,7 @@ class paraProp:
         future implementation plans:
             - different method options
             - only store last range step option
-            
+        TODO: Add Frequency Cuts
         Parameters
         ----------
         rxList : array of Receiver objects
@@ -508,6 +508,97 @@ class paraProp:
                     rx.add_spectrum_component(self.freq[j], self.get_field(x0=rx.x, z0=rx.z))
                 self.field.fill(0)
     #TODO: Add backwards solver
+
+    def do_solver_2way(self, rxList=np.array([])):
+
+        """
+        calculates field at points in the simulation + calculates backwards reflected waves
+        -> modified from do_solver()
+        -> calculates forwards field
+        -> if dn/dx > 0 -> save position of reflector
+        -> use as a source
+        -> calculate an ensemble of u_minus
+
+        Precondition: index of refraction and source profiles are set
+
+        future implementation plans:
+            - different method options
+            - only store last range step option
+
+        Parameters
+        ----------
+        rxList : array of Receiver objects
+            optional for cw signal simulation
+            required for non cw signal simulation
+        TODO: Add Frequency Cuts
+        """
+        if (self.freqNum != 1):
+            ### check for Receivers ###
+            if (len(rxList) == 0):
+                print("Warning: Running time-domain simulation with no receivers. Field will not be saved.")
+            for rx in rxList:
+                rx.setup(self.freq, self.dt)
+
+        for j in np.arange(0, int(self.freqNum / 2) + self.freqNum % 2, 1, dtype='int'):
+            if (self.freq[j] == 0): continue
+            u_plus = 2 * self.A[j] * self.source * self.filt * self.freq[j]
+            self.field[0] = u[self.fNum1:-self.fNum2]
+
+            alpha_plus = np.exp(1.j * self.dx * self.k0[j] * (np.sqrt(1. - (self.kz ** 2 / self.k0[j] ** 2)) - 1.))
+            B_plus = self.n ** 2 - 1
+            Y_plus = np.sqrt(1. + (self.n / self.n0) ** 2)
+            beta_plus = np.exp(1.j * self.dx * self.k0[j] * (np.sqrt(B_plus + Y_plus ** 2) - Y_plus))
+
+            refl_source_list = []
+            x_refl = []
+            ix_refl = []
+            for i in range(1, self.xNum):
+                u_plus = alpha_plus * (util.doFFT(u_plus))
+                u_plus = beta_plus[i] * (util.doIFFT(u_plus))
+                u_plus = self.filt * u_plus
+
+                self.field[i] = u_plus[self.fNum1:-self.fNum2] / (
+                            np.sqrt(self.dx * i) * np.exp(-1.j * self.k0[j] * self.dx * i))
+
+                dn = self.n[i] - self.n[i - 1]
+                if abs(dn) > 0:
+                    refl_source = (u_plus[i] * util.reflection_coefficient(self.n[i], self.n[i - 1]))/ (
+                            np.sqrt(self.dx * i) * np.exp(-1.j * self.k0[j] * self.dx * i))
+                    refl_source_list.append(refl_source)
+                    x_refl.append(self.x[i])
+                    ix_refl.append(i)
+                    u_plus[i] *= util.transmission_coefficient(self.n[i],self.n[i-1])
+            nRefl = len(refl_source_list)
+
+            if nRefl > 0:
+                u_minus_3arr = np.zeros((self.zNumFull, nRefl), dtype='complex')
+                self.field_minus = np.zeros((self.xNum, self.zNum), dtype='complex')
+                field_minus_3arr = np.zeros((self.xNum, self.zNum, nRefl), dtype='complex')
+                for l in range(nRefl):
+                    ix = ix_refl[l]
+                    u_minus_3arr[:, l] = refl_source_list[l]
+                    field_minus_3arr[ix,:,l] = u_minus_3arr[self.fNum1:-self.fNum2,l]
+
+                alpha_minus = np.exp(1.j * self.dx * self.k0[j] * (np.sqrt(1. - (self.kz ** 2 / self.k0[j] ** 2)) - 1.))
+                B_minus = self.n ** 2 - 1
+                Y_minus = np.sqrt(1. + (self.n / self.n0) ** 2)
+                beta_minus = np.exp(1.j * self.dx * self.k0[j] * (np.sqrt(B_minus + Y_minus ** 2) - Y_minus))
+                ix_last = ix_refl[-1]
+                for k in np.arange(ix_last, 0, 1, dtype='int'):
+                    x_minus = self.x[k]
+                    u_minus_3arr = alpha_minus * (util.doFFT(u_minus_3arr))
+                    u_minus_3arr = beta_minus[k] * (util.doIFFT(u_minus_3arr))
+                    u_minus_3arr = self.filt*u_minus_3arr
+                    field_minus_3arr[k, :, :] = np.transpose(
+                        (u_minus_3arr[:, self.fNum1:-self.fNum2] / np.sqrt(x_minus)) * np.exp(1j * x_minus * self.k0[j]))
+            for m in range(nRefl):
+                self.field_minus[:,:] += field_minus_3arr[:,:,m]
+            self.field += self.field_minus
+
+            if (len(rxList) != 0):
+                for rx in rxList:
+                    rx.add_spectrum_component(self.freq[j], self.get_field(x0=rx.x, z0=rx.z))
+                self.field.fill(0)
 
           
     def get_field(self, x0=None, z0=None):

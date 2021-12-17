@@ -216,7 +216,7 @@ class paraProp:
                 else:
                     self.n[i,:] = nAir
         
-        elif nVec != None:             
+        elif nVal == None and nFunc == None:
             if len(nVec.shape) == 1:
                 a = 0
                 nzNum = len(nVec) #TODO: was originally nNum -> changed to nzNum

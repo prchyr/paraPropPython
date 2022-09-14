@@ -2,6 +2,7 @@
 # s. prohira, c. sbrocco
 
 import paraPropPython as ppp
+from receiver import receiver
 import numpy as np
 import matplotlib.pyplot as plt
 import util as util
@@ -37,7 +38,7 @@ impulse[10] = 1+0j
 sig = util.normToMax(util.butterBandpassFilter(impulse, 0.09, 0.25, 1/dt, 4))
 sim.set_td_source_signal(sig, dt)
 
-rxList = [ppp.receiver(100, 25)]
+rxList = [receiver(100, 25)]
 tic = time.perf_counter()
 ### run the solver ###
 sim.do_solver(rxList)

@@ -62,7 +62,7 @@ class paraProp:
         # Alex: Change to an array of complex numbers -> to account for attenuation
         self.n = np.ones((self.zNumFull, self.xNum), dtype='complex')
         self.epsilon_r = np.ones((self.zNumFull, self.xNum), dtype='complex')
-        #TODO: Should I define it (zNum, xNum) or (xNum, zNum)? Because it's defined (zNum, xNum) in set_n but then is transformed by np.tranpose to (xNum, zNum)
+        #TODO: Should I define it (zNum, xNum) or (xNum, zNum)? Because it's defined (zNum, xNum) in set_n but then is transformed by np.transpose to (xNum, zNum)
 
         # source array #
         self.source = np.zeros(self.zNumFull, dtype='complex')
@@ -190,7 +190,7 @@ class paraProp:
         self.epsilon_r = m2eps(self.n)
 
         self.n = np.transpose(self.n)
-        self.epsilon_r = np.tranpose(self.epsilon_r)
+        self.epsilon_r = np.transpose(self.epsilon_r)
 
     def get_n(self):
         """

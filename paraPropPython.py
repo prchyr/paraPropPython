@@ -5,90 +5,8 @@ import util
 import math as m
 import numpy as np
 from inspect import signature
-
-class receiver:
-    """
-    Parameters
-    ----------
-    x : float
-        x position (m)
-    z : float
-        z position (m)
-    """
-    def __init__(self, x, z):
-        self.x = x
-        self.z = z
-    
-    def setup(self, freq, dt):
-        """
-        further setup of receiver using simulation parameters
-        
-        Parameters
-        ----------
-        freq : float array
-            frequencies (GHz)
-        dt : float
-            time step (ns)
-        """
-        self.freq = freq
-        self.spectrum = np.zeros(len(freq), dtype='complex')
-        self.time = np.arange(0, dt*len(freq), dt)
-    
-    def add_spectrum_component(self, f, A):
-        """
-        adds the contribution of a frequency to the received signal spectrum
-        
-        Parameters
-        ----------
-        f : float
-            corresponding frequencie (GHz)
-        A : complex float
-            complex amplitude of received siganl (V/m???)
-        """
-        i = util.findNearest(self.freq, f)
-        self.spectrum[i] = A
-        
-    def get_spectrum(self):
-        """
-        gets received signal spectrum
-        
-        Returns
-        -------
-        1-d comlplex float array
-        """
-        return self.spectrum[:int(len(self.freq)/2)]
-    
-    def get_signal(self):
-        """
-        gets received signal
-        
-        Returns
-        -------
-        1-d comlplex float array
-        """
-        return np.flip(util.doIFFT(self.spectrum))
-    
-    def get_frequency(self):
-        """
-        gets frequency array
-        
-        Returns
-        -------
-        1-d float array
-        """
-        return abs(self.freq)[:int(len(self.freq)/2)]
-    
-    def get_time(self):
-        """
-        gets time array
-        
-        Returns
-        -------
-        1-d float array
-        """
-        return self.time
-     
-        
+from permittivity import eps2m, m2eps
+from receiver import receiver
 
 class paraProp:
     """
@@ -143,6 +61,7 @@ class paraProp:
         # index of refraction array #
         # Alex: Change to an array of complex numbers -> to account for attenuation
         self.n = np.ones((self.zNumFull, self.xNum), dtype='complex')
+        self.epsilon_r = np.ones((self.zNumFull, self.xNum), dtype='complex')
         #TODO: Should I define it (zNum, xNum) or (xNum, zNum)? Because it's defined (zNum, xNum) in set_n but then is transformed by np.tranpose to (xNum, zNum)
 
         # source array #
@@ -150,7 +69,10 @@ class paraProp:
         
         # 2d field array #
         self.field = np.zeros((self.xNum, self.zNum), dtype='complex')
-        
+        # 2d field array for reflected signals
+        self.field_plus = np.zeros((self.xNum, self.zNum), dtype='complex')
+        self.field_minus = np.zeros((self.xNum, self.zNum), dtype='complex')
+
     def optimize_filt_size(self, zNum, fNum):
         zNumFull = 2*fNum + zNum
         p2 = 2**m.ceil(m.log(zNumFull, 2))
@@ -265,9 +187,11 @@ class paraProp:
                             
         ### set reference index of refraction ###
         self.n0 = self.at_depth(self.n[:,0], self.refDepth)
-        
-        self.n = np.transpose(self.n) 
-        
+        self.epsilon_r = m2eps(self.n)
+
+        self.n = np.transpose(self.n)
+        self.epsilon_r = np.tranpose(self.epsilon_r)
+
     def get_n(self):
         """
         gets index of refraction profile of simulation
@@ -463,57 +387,11 @@ class paraProp:
         return np.arange(0, self.dt*len(self.sigVec), self.dt)
                
         
-    ### field functions ###    
-    def do_solver(self, rxList=np.array([])):
+    ### field functions ###
+    def do_solver(self, rxList=np.array([]), freqMin=None, freqMax=None, solver_mode = 'one-way', refl_threshold=1e-10):
         """
-        calculates field at points in the simulation
-        Precondition: index of refraction and source profiles are set
-
-        future implementation plans:
-            - different method options
-            - only store last range step option
-        TODO: Add Frequency Cuts
-        Parameters
-        ----------
-        rxList : array of Receiver objects
-            optional for cw signal simulation
-            required for non cw signal simulation
-        """ 
-        
-        if (self.freqNum != 1):
-            ### check for Receivers ###
-            if (len(rxList) == 0):
-                print("Warning: Running time-domain simulation with no receivers. Field will not be saved.")
-            for rx in rxList:
-                rx.setup(self.freq, self.dt)
-                
-        for j in np.arange(0, int(self.freqNum/2)+self.freqNum%2, 1, dtype='int'):
-            if (self.freq[j] == 0): continue
-            u = 2 * self.A[j] * self.source * self.filt * self.freq[j]
-            self.field[0] = u[self.fNum1:-self.fNum2]
-            
-            alpha = np.exp(1.j * self.dx * self.kp0[j] * (np.sqrt(1. - (self.kz**2 / self.kp0[j]**2))- 1.))
-            B = self.n**2-1
-            Y = np.sqrt(1.+(self.n/self.n0)**2)
-            beta = np.exp(1.j * self.dx * self.kp0[j] * (np.sqrt(B+Y**2)-Y))
-            
-            for i in range(1, self.xNum):               
-                u = alpha * (util.doFFT(u))
-                u = beta[i] * (util.doIFFT(u))
-                u = self.filt * u
-
-                self.field[i] = u[self.fNum1:-self.fNum2]/(np.sqrt(self.dx*i) * np.exp(-1.j * self.k0[j] * self.dx * i))
-                
-            if (len(rxList) != 0):
-                for rx in rxList:
-                    rx.add_spectrum_component(self.freq[j], self.get_field(x0=rx.x, z0=rx.z))
-                self.field.fill(0)
-    #TODO: Add backwards solver
-
-    def do_solver_2way(self, rxList=np.array([])):
-
-        """
-        calculates field at points in the simulation + calculates backwards reflected waves
+        calculate field across the entire geometry (fd mode) or at receivers (td mode)
+        field can be estimate in the forwards or backwards direction or in both directions
         -> modified from do_solver()
         -> calculates forwards field
         -> if dn/dx > 0 -> save position of reflector
@@ -528,11 +406,31 @@ class paraProp:
 
         Parameters
         ----------
-        rxList : array of Receiver objects
+        Optional:
+        -rxList : array of Receiver objects
             optional for cw signal simulation
-            required for non cw signal simulation
-        TODO: Add Frequency Cuts
+            required for non cw signal (td) simulation
+        -freqMin : float (must be less than nyquist frequnecy)
+            defines minimum cutoff frequnecy for TD evalaution
+        -freqMax : float (must be less than nyquist frequnecy)
+            defines maximum cutoff frequuncy for TD evaluation
+        -solver_mode : string
+            defines the simulation mode
+            must be one of three options:
+                one-way : only evaluates in the forwards direction (+)
+                two-way : evaluates in forwards (+) and backwards direction (-)
+                minus : only evaluates in the backwards (-) direction
+        -refl_threshold : float
+            sets minimum reflection power to be simulated (anything less will be neglected)
+
+        Output:
+        FD mode: self.field has solution of E field across the simualtion geometry for the inputs : n, f and z_tx
+        TD mode: rxList contains the signal and spectra for the array of receivers
         """
+        if solver_mode != 'one-way' and solver_mode != 'two-way':
+            print('warning! solver mode must be given as: one-way or two-way')
+            print('will default to one way')
+            solver_mode = 'one-way'
         if (self.freqNum != 1):
             ### check for Receivers ###
             if (len(rxList) == 0):
@@ -540,68 +438,102 @@ class paraProp:
             for rx in rxList:
                 rx.setup(self.freq, self.dt)
 
-        for j in np.arange(0, int(self.freqNum / 2) + self.freqNum % 2, 1, dtype='int'):
+        #Check if solving for TD signal or in FD
+        if freqMin == None and freqMax == None:
+            freq_ints = np.arange(0, int(self.freqNum / 2) + self.freqNum % 2, 1, dtype='int')
+        elif freqMin == None and freqMax != None:
+            ii_min = util.findNearest(self.freq, freqMin)
+            freq_ints = np.arange(ii_min, int(self.freqNum / 2) + self.freqNum % 2, 1, dtype='int')
+        elif freqMin != None and freqMax == None:
+            ii_max = util.findNearest(self.freq, freqMax)
+            freq_ints = np.arange(0, ii_max, 1, dtype='int')
+        else:
+            ii_min = util.findNearest(self.freq, freqMin)
+            ii_max = util.findNearest(self.freq, freqMax)
+            freq_ints = np.arange(ii_min, ii_max, 1, dtype='int')
+
+        for j in freq_ints:
             if (self.freq[j] == 0): continue
             u_plus = 2 * self.A[j] * self.source * self.filt * self.freq[j]
-            self.field[0] = u[self.fNum1:-self.fNum2]
+            self.field[0] = u_plus[self.fNum1:-self.fNum2]
 
             alpha_plus = np.exp(1.j * self.dx * self.kp0[j] * (np.sqrt(1. - (self.kz ** 2 / self.kp0[j] ** 2)) - 1.))
             B_plus = self.n ** 2 - 1
             Y_plus = np.sqrt(1. + (self.n / self.n0) ** 2)
             beta_plus = np.exp(1.j * self.dx * self.kp0[j] * (np.sqrt(B_plus + Y_plus ** 2) - Y_plus))
 
-            refl_source_list = []
-            x_refl = []
-            ix_refl = []
+            if solver_mode == 'two-way':
+                refl_source_list = []
+                x_refl = []
+                ix_refl = []
+                nRefl = 0
+
             for i in range(1, self.xNum):
+                u_plus_i = u_plus # Record starting reduced field -> in case we need to calculate
+                dn = self.x[i] - self.x[i - 1]
+                if dn.any() > 0:
+                    u_plus *= util.transmission_coefficient(self.n[i], self.n[i-1])
                 u_plus = alpha_plus * (util.doFFT(u_plus))
                 u_plus = beta_plus[i] * (util.doIFFT(u_plus))
                 u_plus = self.filt * u_plus
 
-                self.field[i] = u_plus[self.fNum1:-self.fNum2] / (
-                            np.sqrt(self.dx * i) * np.exp(-1.j * self.k0[j] * self.dx * i))
+                delta_x_plus = self.dx * i
+                self.field_plus[i] = u_plus[self.fNum1:-self.fNum2] / (
+                        np.sqrt(delta_x_plus) * np.exp(-1.j * self.k0[j] * delta_x_plus))
 
-                dn = self.n[i] - self.n[i - 1]
-                if abs(dn) > 0:
-                    refl_source = (u_plus[i] * util.reflection_coefficient(self.n[i], self.n[i - 1]))/ (
-                            np.sqrt(self.dx * i) * np.exp(-1.j * self.k0[j] * self.dx * i))
-                    refl_source_list.append(refl_source)
-                    x_refl.append(self.x[i])
-                    ix_refl.append(i)
-                    u_plus[i] *= util.transmission_coefficient(self.n[i],self.n[i-1])
-            nRefl = len(refl_source_list)
+                if solver_mode == 'two-way': #set to reflection modes
+                    if dn.any() > 0: #check if the ref index changes in x direction
+                        refl_source = util.reflection_coefficient(self.n[i], self.n[i-1]) * u_plus_i
+                        if (refl_source**2).any() > refl_threshold: #check if reflected power is above threshold
+                            x_refl.append(self.x[i])
+                            refl_source_list.append(refl_source)
+                            ix_refl.append(i)
+                            nRefl = len(refl_source_list)
+            if solver_mode == 'two-way' or solver_mode == 'minus':  # set to reflection modes
+                if nRefl > 0:
+                    u_minus_3arr = np.zeros((self.zNumFull, nRefl), dtype='complex')
+                    field_minus_3arr = np.zeros((self.xNum, self.zNum, nRefl), dtype='complex')
+                    for l in range(nRefl):
+                        ix = ix_refl[l]
+                        u_minus_3arr[:, l] = refl_source_list[l]
+                        field_minus_3arr[ix, :, l] = u_minus_3arr[self.fNum1:-self.fNum2, l]
+                        alpha_minus = np.exp(
+                            1.j * self.dx * self.kp0[j] * (np.sqrt(1. - (self.kz ** 2 / self.kp0[j] ** 2)) - 1.))
+                        B_minus = self.n ** 2 - 1
+                        Y_minus = np.sqrt(1. + (self.n / self.n0) ** 2)
+                        beta_minus = np.exp(1.j * self.dx * self.kp0[j] * (np.sqrt(B_minus + Y_minus ** 2) - Y_minus))
+                        ix_last = ix_refl[l]
+                        for k in np.flip(np.arange(0, ix_last, 1, dtype='int')):
+                            x_minus = self.x[k]
+                            dx_minus = abs(x_minus - self.x[ix_last])
 
-            if nRefl > 0:
-                u_minus_3arr = np.zeros((self.zNumFull, nRefl), dtype='complex')
-                self.field_minus = np.zeros((self.xNum, self.zNum), dtype='complex')
-                field_minus_3arr = np.zeros((self.xNum, self.zNum, nRefl), dtype='complex')
-                for l in range(nRefl):
-                    ix = ix_refl[l]
-                    u_minus_3arr[:, l] = refl_source_list[l]
-                    field_minus_3arr[ix,:,l] = u_minus_3arr[self.fNum1:-self.fNum2,l]
+                            u_minus_3arr[:, l] = alpha_minus * (util.doFFT(u_minus_3arr[:, l]))  # ????
+                            u_minus_3arr[:, l] = beta_minus[k] * (util.doIFFT(u_minus_3arr[:, l]))
+                            u_minus_3arr[:, l] = self.filt * u_minus_3arr[:, l]
+                            field_minus_3arr[k, :, l] = np.transpose(
+                                (u_minus_3arr[self.fNum1:-self.fNum2, l] / np.sqrt(dx_minus)) * np.exp(
+                                    1j * dx_minus * self.k0[j]))
+                        self.field_minus[:,:] += field_minus_3arr[:,:,l]
 
-                alpha_minus = np.exp(1.j * self.dx * self.kp0[j] * (np.sqrt(1. - (self.kz ** 2 / self.kp0[j] ** 2)) - 1.))
-                B_minus = self.n ** 2 - 1
-                Y_minus = np.sqrt(1. + (self.n / self.n0) ** 2)
-                beta_minus = np.exp(1.j * self.dx * self.kp0[j] * (np.sqrt(B_minus + Y_minus ** 2) - Y_minus))
-                ix_last = ix_refl[-1]
-                for k in np.arange(ix_last, 0, 1, dtype='int'):
-                    x_minus = self.x[k]
-                    u_minus_3arr = alpha_minus * (util.doFFT(u_minus_3arr))
-                    u_minus_3arr = beta_minus[k] * (util.doIFFT(u_minus_3arr))
-                    u_minus_3arr = self.filt*u_minus_3arr
-                    field_minus_3arr[k, :, :] = np.transpose(
-                        (u_minus_3arr[:, self.fNum1:-self.fNum2] / np.sqrt(x_minus)) * np.exp(1j * x_minus * self.k0[j]))
-            for m in range(nRefl):
-                self.field_minus[:,:] += field_minus_3arr[:,:,m]
-            self.field += self.field_minus
+            if solver_mode == 'one-way':
+                self.field[:,:] = self.field_plus[:,:]
+                if (len(rxList) != 0):
+                    for rx in rxList:
+                        rx.add_spectrum_component(self.freq[j], self.get_field(x0=rx.x, z0=rx.z))
+                    self.field.fill(0)
+            elif solver_mode == 'two-way':
+                if (len(rxList) != 0):
+                    for rx in rxList:
+                        rx.add_spectrum_component_plus(self.freq[j], self.get_field_plus(x0=rx.x, z0=rx.z))
+                        rx.add_spectrum_component_minus(self.freq[j], self.get_field_minus(x0=rx.x, z0=rx.z))
+                        rx.spectrum = rx.spectrum_plus + rx.spectrum_minus
+                    self.field.fill(0)
+                    self.field_plus.fill(0)
+                    self.field_minus.fill(0)
+                else:
+                    self.field[:,:] += self.field_plus[:,:]
+                    self.field[:,:] += self.field_minus[:,:]
 
-            if (len(rxList) != 0):
-                for rx in rxList:
-                    rx.add_spectrum_component(self.freq[j], self.get_field(x0=rx.x, z0=rx.z))
-                self.field.fill(0)
-
-          
     def get_field(self, x0=None, z0=None):
         """
         gets field calculated by simulation
@@ -633,7 +565,70 @@ class paraProp:
         if (x0==None and z0!=None):
             return self.field[:,util.findNearest(self.z,z0)]
         return self.field
-                                   
+
+    def get_field_plus(self, x0=None, z0=None):
+        """
+                        gets field calculated by simulation
+
+                        future implementation plans:
+                            - interpolation option
+                            - specify complex, absolute, real, or imaginary field
+
+                        Parameters
+                        ----------
+                        x0 : float
+                            position of interest in x-dimension (m). optional
+                        z0 : float
+                            position of interest in z-dimension (m). optional
+
+                        Returns
+                        -------
+                        if both x0 and z0 are supplied
+                            complex float
+                        if only one of x0 or z0 is supplied
+                            1-d complex float array
+                        if neither x0 or z0 are supplied
+                            2-d complex float array
+                        """
+        if (x0 != None and z0 != None):
+            return self.field_plus[util.findNearest(self.x, x0), util.findNearest(self.z, z0)]
+        if (x0 != None and z0 == None):
+            return self.field_plus[util.findNearest(self.x, x0), :]
+        if (x0 == None and z0 != None):
+            return self.field_plus[:, util.findNearest(self.z, z0)]
+        return self.field_plus
+
+    def get_field_minus(self, x0=None, z0=None):
+        """
+                gets field calculated by simulation
+
+                future implementation plans:
+                    - interpolation option
+                    - specify complex, absolute, real, or imaginary field
+
+                Parameters
+                ----------
+                x0 : float
+                    position of interest in x-dimension (m). optional
+                z0 : float
+                    position of interest in z-dimension (m). optional
+
+                Returns
+                -------
+                if both x0 and z0 are supplied
+                    complex float
+                if only one of x0 or z0 is supplied
+                    1-d complex float array
+                if neither x0 or z0 are supplied
+                    2-d complex float array
+                """
+        if (x0 != None and z0 != None):
+            return self.field_minus[util.findNearest(self.x, x0), util.findNearest(self.z, z0)]
+        if (x0 != None and z0 == None):
+            return self.field_minus[util.findNearest(self.x, x0), :]
+        if (x0 == None and z0 != None):
+            return self.field_minus[:, util.findNearest(self.z, z0)]
+        return self.field_minus
 
     ### misc. functions ###
     def at_depth(self, vec, depth):

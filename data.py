@@ -41,7 +41,7 @@ def create_hdf_bscan(fname, sim, tx_signal, tx_depths, rx_ranges, rx_depths, com
     output_hdf.attrs["nSamples"] = tx_signal.nSamples
 
     n_profile_data = np.zeros((2, len(sim.get_n(x=0))))
-    n_profile_data[0] = sim.z
+    n_profile_data[0] = sim.zFull
     n_profile_data[1] = sim.get_n(x=0)
 
     nRX_x = len(rx_ranges)
@@ -77,6 +77,7 @@ class bscan:
         self.airHeight = float(input_hdf.attrs["airHeight"])
         self.dx = float(input_hdf.attrs["dx"])
         self.dz = float(input_hdf.attrs["dz"])
+        self.z = np.arange(-self.airHeight, self.iceDepth + self.dz, self.dz)
 
         Amplitude = float(input_hdf.attrs["Amplitude"])
         freqCentral = float(input_hdf.attrs["freqCentral"])
@@ -100,7 +101,10 @@ class bscan:
         self.nRX_z = len(self.rx_depths)
         self.nTX = len(self.tx_depths)
 
-        self.n = np.array(input_hdf.get('n_matrix'))
+        self.n_matrix = np.array(input_hdf.get('n_matrix'))
+        n_profile_data = np.array(input_hdf.get('n_profile'))
+        self.n_profile = n_profile_data[0]
+        self.z_profile = n_profile_data[1]
         self.comment = input_hdf.attrs["comment"]
         self.bscan_sig = np.array(input_hdf.get('bscan_sig'))
         input_hdf.close()

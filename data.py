@@ -1,5 +1,5 @@
 import h5py
-import paraPropPython
+import paraPropPython as ppp
 from transmitter import tx_signal
 import numpy as np
 from numpy.lib.format import open_memmap
@@ -7,6 +7,47 @@ from numpy.lib.format import open_memmap
 import util
 import os
 from matplotlib import pyplot as pl
+import configparser
+import argparse
+
+def create_sim(fname_config): #Creates Simulation from config file using parser
+    config = configparser.ConfigParser()
+    config.read(fname_config)
+    geometry = config['GEOMETRY']
+    sim = ppp.paraProp(iceDepth=float(geometry['iceDepth']), iceLength=float(geometry['iceLength']),
+                       dx=float(geometry['dx']), dz=float(geometry['dz']),
+                       airHeight=float(geometry['airHeight']))
+    return sim
+
+def create_tx_signal(fname_config):
+    config = configparser.ConfigParser()
+    config.read(fname_config)
+    signal_config = config['TX_SIGNAL']
+    sig_tx = tx_signal(amplitude=float(signal_config['amplitude']), frequency=float(signal_config['freq_centre']),
+                       bandwidth=float(signal_config['bandwidth']), t_centre=float(signal_config['t_centre']),
+                       tmax=float(signal_config['t_max']), dt=float(signal_config['dt']))
+    return sig_tx
+
+def create_receiver_array(fname_config):
+    config = configparser.ConfigParser()
+    config.read(fname_config)
+    receiver_config = config['RECEIVER']
+    rx_depths = np.arange(float(receiver_config['minDepth']),
+                          float(receiver_config['maxDepth']) + float(receiver_config['dRX_z']),
+                          float(receiver_config['dRX_z']))
+    rx_ranges = np.arange(float(receiver_config['minRange']),
+                          float(receiver_config['maxRange']) + float(receiver_config['dRX_x']),
+                          float(receiver_config['dRX_x']))
+    return rx_ranges, rx_depths
+
+def create_transmitter_array(fname_config):
+    config = configparser.ConfigParser()
+    config.read(fname_config)
+    transmitter_config = config['TRANSMITTER']
+    tx_depths = np.arange(float(transmitter_config['minSource']),
+                          float(transmitter_config['maxSource']) + float(transmitter_config['dTX']),
+                          float(transmitter_config['dTX']))
+    return tx_depths
 
 def create_hdf_bscan(fname, sim, tx_signal, tx_depths, rx_ranges, rx_depths, comment=""):
     '''
@@ -41,7 +82,7 @@ def create_hdf_bscan(fname, sim, tx_signal, tx_depths, rx_ranges, rx_depths, com
     output_hdf.attrs["nSamples"] = tx_signal.nSamples
 
     n_profile_data = np.zeros((2, len(sim.get_n(x=0))))
-    n_profile_data[0] = sim.zFull
+    n_profile_data[0] = sim.z
     n_profile_data[1] = sim.get_n(x=0)
 
     nRX_x = len(rx_ranges)
@@ -77,7 +118,6 @@ class bscan:
         self.airHeight = float(input_hdf.attrs["airHeight"])
         self.dx = float(input_hdf.attrs["dx"])
         self.dz = float(input_hdf.attrs["dz"])
-        self.z = np.arange(-self.airHeight, self.iceDepth + self.dz, self.dz)
 
         Amplitude = float(input_hdf.attrs["Amplitude"])
         freqCentral = float(input_hdf.attrs["freqCentral"])
@@ -101,10 +141,7 @@ class bscan:
         self.nRX_z = len(self.rx_depths)
         self.nTX = len(self.tx_depths)
 
-        self.n_matrix = np.array(input_hdf.get('n_matrix'))
-        n_profile_data = np.array(input_hdf.get('n_profile'))
-        self.n_profile = n_profile_data[0]
-        self.z_profile = n_profile_data[1]
+        self.n = np.array(input_hdf.get('n_matrix'))
         self.comment = input_hdf.attrs["comment"]
         self.bscan_sig = np.array(input_hdf.get('bscan_sig'))
         input_hdf.close()

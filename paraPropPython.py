@@ -107,13 +107,13 @@ class paraProp:
       
     
     ### ice profile functions ###
-    def set_n(self, nVal=None, nVec=None, nFunc=None, nAir=1.0003):
+    def set_n(self, nVal=None, nVec=None, nFunc=None, nAir=1.0003, zVec=[]):
         """
         set the index of refraction profile of the simualtion
-        
+
         future implementation plans:
             - complex index of refraction
-        
+
         Parameters
         ----------
         nVal : float
@@ -128,43 +128,88 @@ class paraProp:
         nAir : float
             index of refraction of air
             Postcondition: n(z<0) = nAir
-        """    
+        """
         self.n = np.ones((self.zNumFull, self.xNum), dtype='complex')
-        
+
         if nVal != None:
             for i in range(self.zNumFull):
                 if self.zFull[i] >= 0:
-                    self.n[i,:] = nVal
+                    self.n[i, :] = nVal
                 else:
-                    self.n[i,:] = nAir
-        
+                    self.n[i, :] = nAir
+
         elif nVal == None and nFunc == None:
             if len(nVec.shape) == 1:
-                a = 0
-                nzNum = len(nVec) #TODO: was originally nNum -> changed to nzNum
-                for i in range(self.zNumFull):
-                    if self.zFull[i] >= 0:
-                        ai = a if a < nzNum else -1
-                        self.n[i,:] = nVec[ai]
-                        a += 1
-                    else:
-                        self.n[i,:] = nAir
-            elif len(nVec.shape) == 2: 
+                if len(zVec) != 0:
+                    dz_vec = abs(zVec[1] - zVec[0])
+                    zmax = zVec[-1]
+                    zmin = zVec[0]
+                    if dz_vec == self.dz:
+                        a = 0
+                        nzNum = len(nVec)
+                        for i in range(self.zNumFull):
+                            if self.zFull[i] >= 0:
+                                if self.zFull[i] >= zmin and self.zFull[i] <= zmax:
+                                    ai = a if a < nzNum else -1
+                                    self.n[i, :] = nVec[ai]
+                                    a += 1
+                                elif self.zFull[i] < zmin:
+                                    self.n[i, :] = nVec[0]
+                                elif self.zFull[i] > zmax:
+                                    self.n[i, :] = nVec[-1]
+                            else:
+                                self.n[i, :] = nAir
+                    elif dz_vec > self.dz:
+                        n_interp = interp1d(zVec, nVec)
+                        for i in range(self.zNumFull):
+                            if self.zFull[i] >= 0:
+                                if self.zFull[i] >= zmin and self.zFull[i] <= zmax:
+                                    self.n[i, :] = n_interp(self.zFull[i])
+                                elif self.zFull[i] < zmin:
+                                    self.n[i, :] = nVec[0]
+                                elif self.zFull[i] > zmax:
+                                    self.n[i, :] = nVec[-1]
+                            else:
+                                self.n[i, :] = nAir
+                    elif dz_vec < self.dz:
+                        for i in range(self.zNumFull):
+                            if self.zFull[i] >= 0:
+                                if self.zFull[i] >= zmin and self.zFull[i] <= zmax:
+                                    jj = util.findNearest(zVec, self.zFull[i])
+                                    self.n[i, :] = nVec[jj]
+                                elif self.zFull[i] < zmin:
+                                    self.n[i, :] = nVec[0]
+                                elif self.zFull[i] > zmax:
+                                    self.n[i, :] = nVec[-1]
+                            else:
+                                self.n[i, :] = nAir
+                else:
+                    a = 0
+                    nzNum = len(nVec)  # TODO: was originally nNum -> changed to nzNum
+                    for i in range(self.zNumFull):
+                        if self.zFull[i] >= 0:
+                            ai = a if a < nzNum else -1
+                            self.n[i, :] = nVec[ai]
+                            a += 1
+                        else:
+                            self.n[i, :] = nAir
+
+            elif len(nVec.shape) == 2:
                 a = 0
                 b = 0
-                nzNum = len(nVec[:,0])
-                nxNum = len(nVec[0,:])
+                nzNum = len(nVec[:, 0])
+                nxNum = len(nVec[0, :])
                 for i in range(self.zNumFull):
                     for j in range(self.xNum):
                         if self.zFull[i] >= 0:
                             ai = a if a < nzNum else -1
                             bi = b if b < nxNum else -1
-                            self.n[i,j] = nVec[ai,bi]
+                            self.n[i, j] = nVec[ai, bi]
                             a += 1
                             b += 1
                         else:
-                            self.n[i,j] = nAir
-         
+                            self.n[i, j] = nAir
+
         elif nFunc != None:
             sig = signature(nFunc)
             numParams = len(sig.parameters)
@@ -172,25 +217,22 @@ class paraProp:
                 for i in range(self.zNumFull):
                     if self.zFull[i] >= 0:
                         z = self.zFull[i] if self.zFull[i] <= self.iceDepth else self.iceDepth
-                        self.n[i,:] = nFunc(z)
+                        self.n[i, :] = nFunc(z)
                     else:
-                        self.n[i,:] = nAir
-            elif numParams == 2:
+                        self.n[i, :] = nAir
+            elif numParams >= 2:
                 for i in range(self.zNumFull):
                     for j in range(self.xNum):
                         if self.zFull[i] >= 0:
                             z = self.zFull[i] if self.zFull[i] <= self.iceDepth else self.iceDepth
                             x = self.x[j]
-                            self.n[i,j] = nFunc(z,x)
+                            self.n[i, j] = nFunc(z, x)
                         else:
-                            self.n[i,j] = nAir
-                            
-        ### set reference index of refraction ###
-        self.n0 = self.at_depth(self.n[:,0], self.refDepth)
-        self.epsilon_r = m2eps(self.n)
+                            self.n[i, j] = nAir
 
+        ### set reference index of refraction ###
+        self.n0 = self.at_depth(self.n[:, 0], self.refDepth)
         self.n = np.transpose(self.n)
-        self.epsilon_r = np.transpose(self.epsilon_r)
 
     def get_n(self):
         """

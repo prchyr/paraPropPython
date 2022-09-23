@@ -1,6 +1,5 @@
 import sys
 import numpy as np
-from matplotlib import pyplot as pl
 import time
 import datetime
 

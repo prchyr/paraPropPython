@@ -1,6 +1,7 @@
 import h5py
 import paraPropPython as ppp
 from transmitter import tx_signal
+from receiver import receiver as rx
 import numpy as np
 from numpy.lib.format import open_memmap
 
@@ -39,6 +40,28 @@ def create_receiver_array(fname_config):
                           float(receiver_config['maxRange']) + float(receiver_config['dRX_x']),
                           float(receiver_config['dRX_x']))
     return rx_ranges, rx_depths
+
+def create_rx_ranges(fname_config):
+    config = configparser.ConfigParser()
+    config.read(fname_config)
+    receiver_config = config['RECEIVER']
+    fname_rx_ranges = str(receiver_config['fname_rx_ranges'])
+    rx_x_list = []
+    with open(fname_rx_ranges,'r') as f:
+        for line in f:
+            cols = line.split()
+            rx_x = float(cols[0])
+            rx_x_list.append(rx_x)
+    rx_ranges = np.array(rx_x_list)
+    return rx_ranges
+
+def create_rxList(rx_x, rx_z):
+    rxList = []
+    for i in range(len(rx_x)):
+        for j in range(len(rx_z)):
+            rx_ij = rx(rx_x[i], rx_z[j])
+            rxList.append(rx_ij)
+    return rxList
 
 def create_transmitter_array(fname_config):
     config = configparser.ConfigParser()
@@ -129,6 +152,7 @@ class bscan:
         dt = float(input_hdf.attrs["dt"])
 
         self.tx_signal = tx_signal(amplitude=Amplitude, frequency=freqCentral, bandwidth=Bandwidth, freqMin=freqMin, freqMax=freqMax, t_centre=tCentral, dt=dt, tmax=tSample)
+        self.tx_signal.pulse = np.array(input_hdf.get('signalPulse'))
         self.tx_depths = np.array(input_hdf.get('source_depths'))
         self.rx_depths = np.array(input_hdf.get('rx_depths'))
         self.rx_ranges = np.array(input_hdf.get('rx_range'))
@@ -142,6 +166,10 @@ class bscan:
         self.nTX = len(self.tx_depths)
 
         self.n = np.array(input_hdf.get('n_matrix'))
+        n_data = np.array(input_hdf.get('n_profile'))
+        self.z_profile = n_data[0,:]
+        self.n_profile = n_data[1,:]
+
         self.comment = input_hdf.attrs["comment"]
         self.bscan_sig = np.array(input_hdf.get('bscan_sig'))
         input_hdf.close()

@@ -2,7 +2,6 @@
 # s. prohira
 # GPL v3
 
-import matplotlib.pyplot as plt
 import numpy as np
 import scipy as sci
 import scipy.constants as constant

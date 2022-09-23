@@ -1,0 +1,25 @@
+[GEOMETRY]
+iceDepth = 15.0
+iceLength = 50.0
+dx = 1.0
+dz = 0.05
+airHeight = 10.
+
+[TX_SIGNAL]
+amplitude = 1.0
+freq_centre = 1.8
+bandwidth = 0.2
+t_centre = 10.0
+t_max = 600.0
+dt = 0.2
+
+[TRANSMITTER]
+minSource = -1.5
+maxSource = 15.0
+dTX = 0.5
+
+[RECEIVER]
+minDepth = -1.5
+maxDepth = 15.0
+dRX_z = 0.5
+fname_rx_ranges = receiver_ranges.txt

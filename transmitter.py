@@ -20,7 +20,7 @@ class tx_signal:
         self.tspace = np.linspace(0, tmax, self.nSamples)
         self.freq_space = np.fft.fftfreq(self.nSamples, self.dt)
         if freqMax == None:
-            self.freqMax = self.frequency - self.bandwidth/2
+            self.freqMax = self.frequency + self.bandwidth/2
         else:
             self.freqMax = freqMax
         if freqMin == None:
@@ -35,3 +35,10 @@ class tx_signal:
 
     def get_spectrum(self): #NOTE: pulse must be defined before
         return self.spectrum
+
+'''
+class transmitter:
+    def __init__(self, z, xO = 0):
+        self.xO = xO
+        self.z = z
+'''

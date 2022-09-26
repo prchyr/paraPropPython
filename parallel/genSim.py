@@ -97,6 +97,6 @@ if os.path.isfile(fname_ref_with_path) == False:
     os.system(create_ref_profile)
 
 for i in range(nRandom):
-    jobline = 'python runSim_for_nprofile.py ' + fname_ref + ' ' + str(i) + '\n'
+    jobline = 'python runSim_for_nprofile.py ' + fname_ref + ' ' + fname_matrix + ' ' + str(i) + '\n'
     job_list.write(jobline)
 job_list.close()

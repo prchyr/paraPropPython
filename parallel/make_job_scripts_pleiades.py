@@ -10,6 +10,18 @@ HOURS = 0
 MEMORY = 500 # in MB
 
 def make_sbatch(jobline, fname, fname_out, jobname, nNodes_min, nNodes_max, partition, days, hours, nodeMemory): #Make batch file to execute job
+    """
+        jobline :
+        fname :
+        fname_out :
+        jobname :
+        nNodes_min
+        nNodes_max
+        partion :
+        days :
+        hours :
+        nodeMemory :
+    """
     sbatch = "#SBATCH"
     fout = open(fname, 'w+')
     fout.write("#!/bin/sh\n")
@@ -30,3 +42,20 @@ def make_sbatch(jobline, fname, fname_out, jobname, nNodes_min, nNodes_max, part
 
     makeprogram = "chmod u+x " + fname
     os.system(makeprogram)
+
+#Input Arguments
+fname_in = sys.argv[1] #List of jobs to be executed
+path2jobs = sys.argv[2] #Directory to save bash scripts to
+
+if __name__ == "__main__":
+    fin = open(fname_in, "r+")
+    if os.path.isdir(path2jobs) == False:
+        os.mkdir(path2jobs)
+    for jobline in fin:
+        cols = jobline.split()
+        src_depth = cols[3]
+        jobname = "src" + src_depth
+        sbatch_file = path2jobs + "/src" + src_depth + ".sh"
+        out_file = path2jobs + "/src" + src_depth + ".out"
+        make_sbatch(jobline, sbatch_file, out_file, jobname, NODES_MIN, NODES_MAX, PARTITION, DAYS, HOURS, MEMORY)
+    fin.close()

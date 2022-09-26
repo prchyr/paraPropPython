@@ -101,5 +101,5 @@ S_corr = 1/Corr
 print(Corr, S_corr)
 n_matrix_hdf = h5py.File(fname_n_matrix,'r+')
 S_arr = n_matrix_hdf['S_arr']
-S_arr[i] = S_corr
+S_arr[ii_select] = S_corr
 n_matrix_hdf.close()

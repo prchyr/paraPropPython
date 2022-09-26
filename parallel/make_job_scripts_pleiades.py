@@ -53,9 +53,9 @@ if __name__ == "__main__":
         os.mkdir(path2jobs)
     for jobline in fin:
         cols = jobline.split()
-        src_depth = cols[3]
-        jobname = "src" + src_depth
-        sbatch_file = path2jobs + "/src" + src_depth + ".sh"
-        out_file = path2jobs + "/src" + src_depth + ".out"
+        job_num = cols[4]
+        jobname = "job" + job_num
+        sbatch_file = path2jobs + "/job" + job_num + ".sh"
+        out_file = path2jobs + "/job" + job_num + ".out"
         make_sbatch(jobline, sbatch_file, out_file, jobname, NODES_MIN, NODES_MAX, PARTITION, DAYS, HOURS, MEMORY)
     fin.close()

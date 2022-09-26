@@ -19,7 +19,7 @@ for i in range(N):
     print(i, A_arr[i])
     fname_matrix = directory + '_matrix.h5'
 
-    command_genSim = 'python genSim.py ' + fname_config + ' ' + fname_nprofile + ' ' + fname_out + ' ' + str(A_arr[i]) + ' ' + str(nRandom)
+    command_genSim = 'python genSim.py ' + fname_nprofile + ' ' + fname_config + ' ' + fname_out + ' ' + str(A_arr[i]) + ' ' + str(nRandom)
     print(command_genSim)
     os.system(command_genSim)
 

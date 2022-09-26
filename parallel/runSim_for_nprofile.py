@@ -29,7 +29,7 @@ z_profile_rand = np.array(n_matrix_hdf.get('z_profile_output'))
 
 n_matrix_hdf.close()
 
-if ii_select == 0 or ii_select >= len(n_profile_matrix):
+if ii_select >= len(n_profile_matrix):
     print('error! ii_select must be greater than zero and less than the number of randomized profiles in ', fname_n_matrix)
     print(0, ' < ii_select < ', len(n_profile_matrix))
     sys.exit(-1)

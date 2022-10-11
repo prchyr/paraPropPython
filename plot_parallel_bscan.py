@@ -22,7 +22,7 @@ else:
 vmin0 = -100
 vmax0 = -10
 
-fname_h5 = fname + '.h5'
+fname_h5 = fname
 sim_bscan = bscan()
 sim_bscan.load_sim(fname_h5)
 tspace = sim_bscan.tx_signal.tspace

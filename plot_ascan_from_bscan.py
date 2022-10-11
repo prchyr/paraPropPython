@@ -32,9 +32,9 @@ else:
 if plot_option != 'real' and plot_option != 'abs' and plot_option != 'dB':
     print('warning: plot options must be real, abs or dB \n default option: real')
 
-fname_h5 = fname + '.h5'
-sim_bscan = bscan
-sim_bscan.load(fname_h5)
+fname_h5 = fname
+sim_bscan = bscan()
+sim_bscan.load_sim(fname_h5)
 ascan = sim_bscan.get_ascan(zTx=zTx, xRx=xRx, zRx=zRx)
 tspace = sim_bscan.tspace
 

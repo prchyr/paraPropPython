@@ -2,7 +2,6 @@
 # s. prohira
 # GPL v3
 
-import matplotlib.pyplot as plt
 import numpy as np
 import scipy as sci
 import scipy.constants as constant
@@ -356,3 +355,14 @@ def dot(one, two, norm=1):
     else:
         out=prod
     return out
+
+def reflection_coefficient(m1, m2):
+    n1 = m1.real
+    k1 = m1.imag
+    n2 = m2.real
+    k2 = m2.imag
+    return (abs(n1 - n2)**2 + abs(k1-k2)**2) / (abs(n1+n2)**2 + abs(k1 + k2)**2)
+
+#Transmission Coefficient
+def transmission_coefficient(m1, m2):
+    return 1 - reflection_coefficient(m1, m2)

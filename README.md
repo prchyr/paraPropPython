@@ -1,9 +1,15 @@
 # paraPropPython
 
+Authors:
+Alex Kyriacou - kyriacou@uni-wuppertal.de
+Steven Prohira
+Cade Sbrocco
+
 this is a simple parabolic equation EM solver, it uses the parabolic equation approximation to simulate the propagation of EM waves in a medium with a changing index of refraction. 
 Currently it is designed to simulate propagation of waves beneath the ice and in the air in the UHF frequency range on relatively short baselines 
 
-This is a modified version of the original by Prohira and Cade Sbrocco. This version includes a number of updates including:
+This is a modified version of the original (arXiv:2011.05997). This version includes a number of updates including:
+
 1. Two dimensional refractive index profiles (range varying)
 2. Complex refractive index profiles (models wave attenuation)
 3. Backwards reflected waves

@@ -9,7 +9,7 @@ import sys
 import os
 import time
 import datetime
-
+sys.path.append('../')
 import util
 import paraPropPython as ppp
 from receiver import receiver as rx
